@@ -25,7 +25,7 @@ pipeline {
                   Expand-Archive -Force -Path pipeline-scan.zip -DestinationPath veracode_scanner
                   java -jar veracode_scanner\\pipeline-scan.jar --veracode_api_id '${VERACODE_API_ID}' \
                   --veracode_api_key '${VERACODE_API_KEY}' \
-                  --file target/verademo.war
+                  --file target/verademo.war --fail_on_severity="Very High, High" --fail_on_cwe="80" --issue_details true
                 """
 			}
 		}
