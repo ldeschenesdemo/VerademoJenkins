@@ -12,9 +12,10 @@ pipeline {
 		stage('SCA') {
 			steps {
 				powershell """
-                  Set-ExecutionPolicy AllSigned -Scope Process -Force
-                  $ProgressPreference = "silentlyContinue"
-		  iex ((New-Object System.Net.WebClient).DownloadString('https://download.srcclr.com/ci.ps1')) 
+                  $OriginalPref = $ProgressPreference
+		  $ProgressPreference = “SilentlyContinue”
+		  Set-ExecutionPolicy AllSigned -Scope Process -Force
+                  iex ((New-Object System.Net.WebClient).DownloadString('https://download.srcclr.com/ci.ps1')) 
                   srcclr scan .
 		        """
         	}
