@@ -13,6 +13,7 @@ pipeline {
 			steps {
 				powershell """
 		  Set-ExecutionPolicy AllSigned -Scope Process -Force
+		  $OriginalPref = $ProgressPreference
 		  $ProgressPreference = 'SilentlyContinue'
                   iex ((New-Object System.Net.WebClient).DownloadString('https://download.srcclr.com/ci.ps1'))
                   srcclr scan .
