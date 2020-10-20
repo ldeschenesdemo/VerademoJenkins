@@ -29,11 +29,11 @@ jobs:
   uses: veracode/veracode-uploadandscan-action@0.2.1
   with:
     # appname
-    appname: 'Build System Demo Application
+    appname: 'Build System Demo Application'
     # createprofile
     createprofile: # default is true
     # filepath
-    filepath: target/*war
+    filepath: target/*.war
     # version
     version: ${{ github.run_id }}
     # vid
