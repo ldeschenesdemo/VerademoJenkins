@@ -17,50 +17,20 @@ jobs:
       run: mvn -B package --file pom.xml
       
       - name: Veracode Upload And Scan
-  uses: veracode/veracode-uploadandscan-action@0.2.1
-
-# - Here we are running a Veracode Static Analysis Policy Scan    
-veracode-policy-scan:
-    stage: devops-security
-    allow_failure: true
-    only:
-        - schedules
-        - master
-    before_script:
-        - wget -q -O veracode-wrapper.jar https://repo1.maven.org/maven2/com/veracode/vosp/api/wrappers/vosp-api-wrappers-java/${VERACODE_WRAPPER_VERSION}/vosp-api-wrappers-java-${VERACODE_WRAPPER_VERSION}.jar
-    script:
-      
-        - java -jar veracode-wrapper.jar -vid ${VERACODE_API_ID} -vkey ${VERACODE_API_KEY}
-          -action UploadAndScan -appname "Build System Demo Application" -createprofile false -autoscan true
-          -filepath */verademo.war -version "job ${CI_JOB_ID} in pipeline ${CI_PIPELINE_ID}" -sandboxname GitLab-Build -createsandbox true
-# - First we are going to get our Java API Wrapper. Next, we are going to invoke the API and pull the API credentials that are stored as variables in my GitLab CI/CD, and then run the Policy Scan in an existing Application Profile named 'Build System Demo Application' and will automatically create a Policy Sandbox called 'GitLab-Build'. For your own enviroment, you will want to change these names for your own Application Profile and Policy Sandbox. The build can be broken if the Policy Scan fails Policy, and all results will be uploaded to the Veracode Platform.  You can find additional information about our APIs here: https://help.veracode.com/reader/orRWez4I0tnZNaA_i0zn9g/exiwH8tSWzKXkMd2_bRJHA
-
-
-# - Here we are running a Veracode Software Composition Analysis Agent-Based Scan 
-sca-scan:
-    stage: devops-security
-    allow_failure: true
-    only:
-        - schedules
-        - master
-    script:
-        - curl -sSL https://download.sourceclear.com/ci.sh | sh
-# - First we are invoking the SCA Agent-Based Scanner.  Next, we are running it directly against this repository.  You will need to leverage a Veracode SCA Agent token in order to authenticate the SCA Agent for a successful scan.  Results will be output into the GitLab CI/CD Pipeline as well as uploaded to the Veracode Platform.  You can find additional information about our SCA Agent-Based Scan here: https://help.veracode.com/reader/hHHR3gv0wYc2WbCclECf_A/etU1XZyYpAWIAGFYv_JjPA
-
-
-# - Here we are running a Veracode Static Analysis Pipeline Scan            
-pipeline-scan:   
-    stage: devops-security
-    allow_failure: false
-    only:
-       - schedules
-       - master
-    script:
-       - curl -O https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
-       - unzip pipeline-scan-LATEST.zip pipeline-scan.jar
-       - java -jar pipeline-scan.jar
-              --veracode_api_id ${VERACODE_API_ID} 
-              --veracode_api_key ${VERACODE_API_KEY}
-              --file */verademo.war
-              --fail_on_severity="Very High, High"
-# - First we are downloading the latest Pipeline Scanner, and extracting and running it. Next, we have are calling our API Credentials, pointing the scanner at the artifact we wish to scan, and then have our failure parameters in place.  If you wish to utilize Baseline File, you would add that as another line to point that at your baseline.json file which would sit in this repository.  For our Pipeline Scan, we have set our allow_failure to FALSE in order to break the build if we find flaws that violate our failure parameters.  Results will be output into the GitLab CI/CD Pipeline and can create GitLab tickets.  You can find additional information about our Static Pipeline Scan here: https://help.veracode.com/reader/tS9CaFwL4_lbIEWWomsJoA/ovfZGgu96UINQxIuTqRDwg
+- uses: veracode/veracode-uploadandscan-action@0.2.1
+- uses: actions/setup-java@v1 # Make java accessible on path so the uploadandscan action can run.
+  with: 
+    java-version: '8'
+    path: target/*.war # Wildcards can be used to filter the files copied into the container. See: https://github.com/actions/upload-artifact
+- uses: actions/veracode-uploadandscan-action@master # Run the uploadandscan action. Inputs are described above.
+  with:
+    filepath: 'target/*.war'
+    vid: '${{ secrets.VERACODE_API_ID }}'
+    vkey: '${{ secrets.VERACODE_API_KEY }}'
+    appname: 'Build System Demo Application'
+    createsandbox: 'true'
+    sandboxname: 'GitHub-Build'
+    scantimeout: 15
+    exclude: '*.js'
+    include: '*.war'
+    criticality: 'VeryHigh'
