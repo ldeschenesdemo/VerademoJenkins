@@ -30,9 +30,9 @@ jobs:
         # appname
         appname: 'Build System Demo Application'
         # createprofile
-        createprofile: # default is true
+        createprofile: false
         # filepath
-        filepath: verademo.war
+        filepath: target/*.war
         # version
         version: ${{ github.run_id }}
         # vid
