@@ -64,7 +64,7 @@ jobs:
               -vid $VERACODE_API_ID 
               -vkey $VERACODE_API_KEY 
               -action uploadandscan 
-              -appname $VERACODE_APP_NAME 
+              -appname VeraDemo 
               -createprofile false 
               -version CircleCI-$CIRCLE_BUILD_NUM 
               -filepath verademo/target/verademo.war
