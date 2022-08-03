@@ -1,41 +1,123 @@
+/*
+ * Normal Jenkinsfile that will build and do Policy and SCA scans
+ */
+
 pipeline {
     agent any
 
-    stages {
-        stage('Build') {
+    environment {
+        VERACODE_APP_NAME = 'Verademo'      // App Name in the Veracode Platform
+    }
+
+    // this is optional on Linux, if jenkins does not have access to your locally installed docker
+    //tools {
+        // these match up with 'Manage Jenkins -> Global Tool Config'
+        //'org.jenkinsci.plugins.docker.commons.tools.DockerTool' 'docker-latest' 
+    //}
+
+    options {
+        // only keep the last x build logs and artifacts (for space saving)
+        buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '20'))
+    }
+
+    stages{
+        stage ('environment verify') {
             steps {
-                echo 'Building..'
-                sh 'mvn package'
+                script {
+                    if (isUnix() == true) {
+                        sh 'pwd'
+                        sh 'ls -la'
+                        sh 'echo $PATH'
+                    }
+                    else {
+                        bat 'dir'
+                        bat 'echo %PATH%'
+                    }
+                }
             }
         }
-		stage('SCA') {
-			steps {
-				sh 'curl -sSL https://download.sourceclear.com/ci.sh | sh'
-			}
-		}
-		stage('Veracode Pipeline Scan') {
-            steps {
-                sh 'curl -O https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip'
-                sh 'unzip -o pipeline-scan-LATEST.zip pipeline-scan.jar'
-                sh 'java -jar pipeline-scan.jar \
-                    --veracode_api_id "${VERACODE_API_ID}" \
-                    --veracode_api_key "${VERACODE_API_SECRET}" \
-                    --project_name "verademo" \
-                    --file target/verademo.war \
-                    --fail_on_severity="Very High, High" \
-                    --json_output_file="baseline.json"'
 
-			}
-		}
-        stage('Deploy') {
+        stage ('build') {
             steps {
-                echo 'Deploying....'
+                withMaven(maven:'maven-3') {
+                    script {
+                        if(isUnix() == true) {
+                            sh 'mvn clean package'
+                        }
+                        else {
+                            bat 'mvn clean package'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage ('Veracode scan') {
+            steps {
+                script {
+                    if(isUnix() == true) {
+                        env.HOST_OS = 'Unix'
+                    }
+                    else {
+                        env.HOST_OS = 'Windows'
+                    }
+                }
+
+                echo 'Veracode scanning'
+                withCredentials([ usernamePassword ( 
+                    credentialsId: 'veracode_login', usernameVariable: 'VERACODE_API_ID', passwordVariable: 'VERACODE_API_KEY') ]) {
+                        // fire-and-forget 
+                        veracode applicationName: "${VERACODE_APP_NAME}", criticality: 'VeryHigh', debug: true, fileNamePattern: '', pHost: '', pPassword: '', pUser: '', replacementPattern: '', sandboxName: '', scanExcludesPattern: '', scanIncludesPattern: '', scanName: "${BUILD_TAG}-${env.HOST_OS}", uploadExcludesPattern: '', uploadIncludesPattern: 'target/verademo.war', vid: "${VERACODE_API_ID}", vkey: "${VERACODE_API_KEY}"
+
+                        // wait for scan to complete (timeout: x)
+                        //veracode applicationName: '${VERACODE_APP_NAME}'', criticality: 'VeryHigh', debug: true, timeout: 20, fileNamePattern: '', pHost: '', pPassword: '', pUser: '', replacementPattern: '', sandboxName: '', scanExcludesPattern: '', scanIncludesPattern: '', scanName: "${BUILD_TAG}", uploadExcludesPattern: '', uploadIncludesPattern: 'target/verademo.war', vid: '${VERACODE_API_ID}', vkey: '${VERACODE_API_KEY}'
+                    }      
+            }
+        }
+
+        stage ('Veracode SCA') {
+            steps {
+                echo 'Veracode SCA'
+                withCredentials([ string(credentialsId: 'SCA_Token', variable: 'SRCCLR_API_TOKEN')]) {
+                    withMaven(maven:'maven-3') {
+                        script {
+                            if(isUnix() == true) {
+                                sh "curl -sSL https://download.sourceclear.com/ci.sh | sh"
+
+                                // debug, no upload
+                                //sh "curl -sSL https://download.sourceclear.com/ci.sh | DEBUG=1 sh -s -- scan --no-upload"
+                            }
+                            else {
+                                powershell '''
+                                            Set-ExecutionPolicy AllSigned -Scope Process -Force
+                                            $ProgressPreference = "silentlyContinue"
+                                            iex ((New-Object System.Net.WebClient).DownloadString('https://download.srcclr.com/ci.ps1'))
+                                            srcclr scan
+                                            '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // only works on *nix, as we're building a Linux image
+        //  uses the natively installed docker
+        stage ('Deploy') {
+            when { expression { return (isUnix() == true) } }
+            steps {
+                echo 'building Docker image'
+            //    sh 'docker version'
+
+            //    ansiColor('xterm') {
+            //        sh 'docker build -t verademo:${BUILD_TAG} .'
+            //    }
+                
+                // split into separate stage??
+                echo 'Deploying ...'
+        
             }
         }
     }
-	post {
-	    always {
-	      archiveArtifacts artifacts: 'results.json', fingerprint: true
-	    }
-	}
 }
+
